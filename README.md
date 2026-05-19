@@ -1,16 +1,59 @@
-# React + Vite
+🚀 Job Scraper Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A React dashboard that displays AI-scored job listings from the Multi-Cloud Job Scraper Pipeline.
 
-Currently, two official plugins are available:
+## 🌐 Live Demo
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+[job-scraper-dashboard-taupe.vercel.app](https://job-scraper-dashboard-taupe.vercel.app)
 
-## React Compiler
+## 📊 Features
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Daily job listings scored by Gemini AI
+- Filter by days, minimum match score, source, and remote status
+- Match score distribution chart
+- Stats cards — total jobs, average score, remote count, sources
+- Direct links to job postings
 
-## Expanding the ESLint configuration
+## 🔗 Connected To
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+This dashboard consumes the `/jobs` API endpoint from the backend pipeline:
+GET https://q0xo68b302.execute-api.us-east-1.amazonaws.com/Prod/jobs
+
+### Query Parameters
+
+| Parameter | Type | Description | Example |
+|-----------|------|-------------|---------|
+| days | int | Days of history | ?days=7 |
+| min_score | int | Minimum match score | ?min_score=70 |
+| remote_only | bool | Remote jobs only | ?remote_only=true |
+| source | string | Filter by source | ?source=USAJobs |
+
+## 🗂️ Project Structure
+job-scraper-dashboard/
+├── src/
+│   ├── App.jsx        # Main dashboard component
+│   ├── index.css      # Global styles
+│   └── main.jsx       # Entry point
+├── public/
+├── index.html
+├── vite.config.js
+└── package.json
+
+## 🚀 Run Locally
+
+```bash
+npm install
+npm run dev
+```
+
+## 🛠️ Tech Stack
+
+- React + Vite
+- Recharts — score distribution chart
+- Lucide React — icons
+- Axios — API calls
+- Vercel — deployment
+
+## 👨‍💻 Author
+
+Juan Spinelli — Miami, FL
