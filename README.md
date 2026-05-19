@@ -29,6 +29,8 @@ GET https://q0xo68b302.execute-api.us-east-1.amazonaws.com/Prod/jobs
 | source | string | Filter by source | ?source=USAJobs |
 
 ## 🗂️ Project Structure
+
+```
 job-scraper-dashboard/
 ├── src/
 │   ├── App.jsx        # Main dashboard component
@@ -38,6 +40,7 @@ job-scraper-dashboard/
 ├── index.html
 ├── vite.config.js
 └── package.json
+```
 
 ## 🚀 Run Locally
 
