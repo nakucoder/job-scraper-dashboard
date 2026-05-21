@@ -16,7 +16,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filters, setFilters] = useState({
-    days: 1,
+    days: 2,
     min_score: 0,
     remote_only: false,
     source: ""
