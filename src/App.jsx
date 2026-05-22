@@ -1,210 +1,317 @@
-import { useState, useEffect } from "react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
-import { Briefcase, MapPin, DollarSign, Cloud, AlertTriangle, BookOpen, ExternalLink, RefreshCw } from "lucide-react";
-import axios from "axios";
+import { useState, useEffect, useMemo } from "react";
+import { RefreshCw, Bookmark, AlertCircle, Activity, Briefcase, Database, Globe, ArrowUp } from "lucide-react";
+import { fetchJobs } from "@/lib/jobs-data";
+import { StatCard } from "@/components/dashboard/StatCard";
+import { MatchGauge } from "@/components/dashboard/MatchGauge";
+import { SkillRadar } from "@/components/dashboard/SkillRadar";
+import { ScoreDistribution } from "@/components/dashboard/ScoreDistribution";
+import { FilterBar } from "@/components/dashboard/FilterBar";
+import { JobCard } from "@/components/dashboard/JobCard";
+import { PriorityGaps } from "@/components/dashboard/PriorityGaps";
 
-const API_URL = "https://q0xo68b302.execute-api.us-east-1.amazonaws.com/Prod/jobs";
-
-const scoreColor = (score) => {
-  if (score >= 75) return "#22c55e";
-  if (score >= 50) return "#f59e0b";
-  return "#ef4444";
+const DEFAULT_FILTERS = {
+  days: 7,
+  minScore: 0,
+  source: "all",
+  remoteOnly: false,
+  query: "",
+  sort: "score",
 };
 
 export default function App() {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [filters, setFilters] = useState({
-    days: 2,
-    min_score: 0,
-    remote_only: false,
-    source: ""
-  });
-  const [stats, setStats] = useState({});
+  const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const [bookmarks, setBookmarks] = useState(new Set());
+  const [showSavedOnly, setShowSavedOnly] = useState(false);
+  const [lastSync, setLastSync] = useState(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
-  const fetchJobs = async () => {
+  useEffect(() => {
+    const onScroll = () => setShowScrollTop(window.scrollY > 400);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const load = async (currentFilters = filters) => {
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams();
-      params.append("days", filters.days);
-      if (filters.min_score > 0) params.append("min_score", filters.min_score);
-      if (filters.remote_only) params.append("remote_only", "true");
-      if (filters.source) params.append("source", filters.source);
-
-      const res = await axios.get(`${API_URL}?${params.toString()}`);
-      setJobs(res.data.jobs || []);
-
-      // compute stats
-      const jobList = res.data.jobs || [];
-      const avgScore = jobList.length
-        ? Math.round(jobList.reduce((a, b) => a + (b.match_score_percent || 0), 0) / jobList.length)
-        : 0;
-      const remoteCount = jobList.filter(j => j.is_remote).length;
-      const sources = [...new Set(jobList.map(j => j.source))];
-      setStats({ total: jobList.length, avgScore, remoteCount, sources });
-    } catch (e) {
+      const data = await fetchJobs({
+        days: currentFilters.days,
+        min_score: currentFilters.minScore > 0 ? currentFilters.minScore : undefined,
+        remote_only: currentFilters.remoteOnly || undefined,
+        source: currentFilters.source !== "all" ? currentFilters.source : undefined,
+      });
+      setJobs(data);
+      setLastSync(new Date());
+    } catch {
       setError("Could not load jobs. The scraper may not have run yet today.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
-  useEffect(() => { fetchJobs(); }, []);
+  useEffect(() => {
+    load();
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("apexscout:bookmarks");
+      if (saved) setBookmarks(new Set(JSON.parse(saved)));
+    }
+  }, []);
 
-  const scoreDistribution = [
-    { range: "0-25", count: jobs.filter(j => j.match_score_percent < 25).length },
-    { range: "25-50", count: jobs.filter(j => j.match_score_percent >= 25 && j.match_score_percent < 50).length },
-    { range: "50-75", count: jobs.filter(j => j.match_score_percent >= 50 && j.match_score_percent < 75).length },
-    { range: "75-100", count: jobs.filter(j => j.match_score_percent >= 75).length },
-  ];
+  const toggleBookmark = (id) => {
+    setBookmarks((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      localStorage.setItem("apexscout:bookmarks", JSON.stringify([...next]));
+      return next;
+    });
+  };
+
+  const filtered = useMemo(() => {
+    let list = jobs.filter((j) => {
+      if (j.score < filters.minScore) return false;
+      if (filters.source !== "all" && j.source !== filters.source) return false;
+      if (filters.remoteOnly && !j.remote) return false;
+      if (showSavedOnly && !bookmarks.has(j.id)) return false;
+      if (filters.query.trim()) {
+        const q = filters.query.toLowerCase();
+        const hay = `${j.title} ${j.company} ${j.tags.join(" ")} ${j.location}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+
+    return [...list].sort((a, b) => {
+      if (filters.sort === "score") return b.score - a.score;
+      if (filters.sort === "date") return a.postedDaysAgo - b.postedDaysAgo;
+      return b.salaryMax - a.salaryMax;
+    });
+  }, [jobs, filters, bookmarks, showSavedOnly]);
+
+  const stats = useMemo(() => {
+    const total = jobs.length;
+    const avg = total
+      ? jobs.reduce((s, j) => s + j.score, 0) / total
+      : 0;
+    const remote = jobs.filter((j) => j.remote).length;
+    const sources = new Set(jobs.map((j) => j.source)).size;
+    const strong = jobs.filter((j) => j.score >= 85).length;
+    const topScore = jobs.length ? Math.max(...jobs.map((j) => j.score)) : 0;
+    const salaries = jobs.filter((j) => j.salaryMax > 0).map((j) => j.salaryMax);
+    const medianSalary = salaries.length
+      ? salaries.sort((a, b) => a - b)[Math.floor(salaries.length / 2)]
+      : 0;
+    return { total, avg, remote, sources, strong, topScore, medianSalary };
+  }, [jobs]);
+
+  const syncTime = lastSync
+    ? lastSync.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    : null;
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f9fafb", fontFamily: "sans-serif" }}>
-      {/* Header */}
-      <div style={{ background: "#1e293b", color: "white", padding: "24px 32px" }}>
-        <div style={{ maxWidth: 1000, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div>
-            <h1 style={{ margin: 0, fontSize: 24 }}>🚀 Job Scraper Dashboard</h1>
-            <p style={{ margin: "4px 0 0", color: "#94a3b8", fontSize: 14 }}>Multi-Cloud AI-Powered Job Pipeline</p>
-          </div>
-          <button onClick={fetchJobs} style={{ background: "#2563eb", color: "white", border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
-            <RefreshCw size={16} /> Refresh
-          </button>
-        </div>
-      </div>
+    <div className="min-h-screen bg-brand-bg text-foreground">
 
-      <div style={{ maxWidth: 1000, margin: "0 auto", padding: "24px 32px" }}>
-
-        {/* Stats */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
-          {[
-            { label: "Total Jobs", value: stats.total || 0, icon: <Briefcase size={20} color="#2563eb" /> },
-            { label: "Avg Match Score", value: `${stats.avgScore || 0}%`, icon: <Cloud size={20} color="#22c55e" /> },
-            { label: "Remote Jobs", value: stats.remoteCount || 0, icon: <MapPin size={20} color="#f59e0b" /> },
-            { label: "Sources", value: (stats.sources || []).length, icon: <DollarSign size={20} color="#8b5cf6" /> },
-          ].map((s, i) => (
-            <div key={i} style={{ background: "white", borderRadius: 12, padding: 20, boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <p style={{ margin: 0, color: "#6b7280", fontSize: 14 }}>{s.label}</p>
-                {s.icon}
-              </div>
-              <p style={{ margin: "8px 0 0", fontSize: 28, fontWeight: "bold", color: "#111827" }}>{s.value}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Score Distribution Chart */}
-        {jobs.length > 0 && (
-          <div style={{ background: "white", borderRadius: 12, padding: 20, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", marginBottom: 24 }}>
-            <h2 style={{ margin: "0 0 16px", fontSize: 16, color: "#111827" }}>Match Score Distribution</h2>
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={scoreDistribution}>
-                <XAxis dataKey="range" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="count" radius={[6, 6, 0, 0]}>
-                  {scoreDistribution.map((entry, index) => (
-                    <Cell key={index} fill={["#ef4444", "#f59e0b", "#3b82f6", "#22c55e"][index]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-
-        {/* Filters */}
-        <div style={{ background: "white", borderRadius: 12, padding: 20, boxShadow: "0 1px 3px rgba(0,0,0,0.1)", marginBottom: 24, display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
-          <div>
-            <label style={{ fontSize: 13, color: "#6b7280" }}>Days</label>
-            <select value={filters.days} onChange={e => setFilters({ ...filters, days: e.target.value })}
-              style={{ display: "block", marginTop: 4, padding: "6px 12px", borderRadius: 6, border: "1px solid #e5e7eb" }}>
-              <option value={1}>Today</option>
-              <option value={7}>Last 7 days</option>
-              <option value={30}>Last 30 days</option>
-            </select>
-          </div>
-          <div>
-            <label style={{ fontSize: 13, color: "#6b7280" }}>Min Score</label>
-            <select value={filters.min_score} onChange={e => setFilters({ ...filters, min_score: e.target.value })}
-              style={{ display: "block", marginTop: 4, padding: "6px 12px", borderRadius: 6, border: "1px solid #e5e7eb" }}>
-              <option value={0}>Any</option>
-              <option value={50}>50%+</option>
-              <option value={75}>75%+</option>
-            </select>
-          </div>
-          <div>
-            <label style={{ fontSize: 13, color: "#6b7280" }}>Source</label>
-            <select value={filters.source} onChange={e => setFilters({ ...filters, source: e.target.value })}
-              style={{ display: "block", marginTop: 4, padding: "6px 12px", borderRadius: 6, border: "1px solid #e5e7eb" }}>
-              <option value="">All</option>
-              <option value="USAJobs">USAJobs</option>
-              <option value="Remotive">Remotive</option>
-              <option value="StackOverflow">StackOverflow</option>
-              <option value="Indeed">Indeed</option>
-            </select>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 20 }}>
-            <input type="checkbox" checked={filters.remote_only} onChange={e => setFilters({ ...filters, remote_only: e.target.checked })} />
-            <label style={{ fontSize: 13, color: "#6b7280" }}>Remote only</label>
-          </div>
-          <button onClick={fetchJobs} style={{ marginTop: 20, background: "#2563eb", color: "white", border: "none", borderRadius: 6, padding: "8px 16px", cursor: "pointer" }}>
-            Apply
-          </button>
-        </div>
-
-        {/* Jobs List */}
-        {loading && <p style={{ textAlign: "center", color: "#6b7280" }}>Loading jobs...</p>}
-        {error && (
-          <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 12, padding: 20, textAlign: "center", color: "#dc2626" }}>
-            {error}
-          </div>
-        )}
-        {!loading && !error && jobs.length === 0 && (
-          <div style={{ background: "white", borderRadius: 12, padding: 40, textAlign: "center", color: "#6b7280", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
-            <Briefcase size={40} color="#d1d5db" />
-            <p style={{ marginTop: 16 }}>No jobs yet — the scraper runs every morning at 7am Miami time.</p>
-          </div>
-        )}
-        {!loading && jobs.map((job, i) => (
-          <div key={i} style={{ background: "white", borderRadius: 12, padding: 20, marginBottom: 16, boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div>
-                <h2 style={{ margin: 0, fontSize: 18, color: "#111827" }}>{job.title}</h2>
-                <p style={{ margin: "4px 0", color: "#6b7280", fontSize: 14 }}>{job.company} — {job.location} {job.is_remote ? "✅ Remote" : "🏢 On-site"}</p>
-                <p style={{ margin: "4px 0", color: "#6b7280", fontSize: 14 }}>
-                  💰 {job.estimated_salary_min && job.estimated_salary_max ? `$${job.estimated_salary_min?.toLocaleString()} - $${job.estimated_salary_max?.toLocaleString()}` : "Salary not specified"} &nbsp;|&nbsp;
-                  ☁️ {job.primary_cloud || "N/A"} &nbsp;|&nbsp;
-                  📌 {job.source}
-                </p>
-              </div>
-              <span style={{ background: scoreColor(job.match_score_percent), color: "white", padding: "4px 14px", borderRadius: 20, fontWeight: "bold", fontSize: 14, whiteSpace: "nowrap" }}>
-                {job.match_score_percent}% match
+      {/* ── HERO ── */}
+      <section
+        className="relative border-b border-brand-border"
+        style={{
+          backgroundImage: `
+            linear-gradient(oklch(0.27 0.008 286 / 0.15) 1px, transparent 1px),
+            linear-gradient(90deg, oklch(0.27 0.008 286 / 0.15) 1px, transparent 1px)
+          `,
+          backgroundSize: "40px 40px",
+        }}
+      >
+        {/* Nav bar */}
+        <nav className="flex items-center justify-end px-6 lg:px-10 py-4 border-b border-brand-border/50">
+          <div className="flex items-center gap-4 text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
+            <span>Pipeline <span className="text-foreground">MIA-EAST-1</span></span>
+            <span>Cron <span className="text-foreground">07:00 EST</span></span>
+            {syncTime && <span>Sync <span className="text-foreground">{syncTime}</span></span>}
+            <span className="flex items-center gap-1.5">
+              <span className={`size-2 rounded-full ${error ? "bg-brand-danger" : "bg-brand-primary animate-pulse"}`} />
+              <span className={error ? "text-brand-danger" : "text-brand-primary"}>
+                {error ? "Offline" : "Live"}
               </span>
-            </div>
-            <hr style={{ border: "none", borderTop: "1px solid #f3f4f6", margin: "12px 0" }} />
-            {job.constraint_violations?.length > 0 && (
-              <div style={{ marginBottom: 8 }}>
-                {job.constraint_violations.map((v, i) => (
-                  <p key={i} style={{ margin: "2px 0", fontSize: 13, color: "#dc2626" }}>
-                    <AlertTriangle size={12} style={{ marginRight: 4 }} />⚠️ {v}
-                  </p>
-                ))}
-              </div>
-            )}
-            {job.upskill_recommendations?.length > 0 && (
-              <p style={{ margin: "4px 0", fontSize: 13, color: "#6b7280" }}>
-                <BookOpen size={12} style={{ marginRight: 4 }} />
-                📚 Upskill: {job.upskill_recommendations.join(", ")}
-              </p>
-            )}
-            <a href={job.url} target="_blank" rel="noreferrer"
-              style={{ display: "inline-block", marginTop: 12, background: "#2563eb", color: "white", padding: "8px 16px", borderRadius: 6, textDecoration: "none", fontSize: 14 }}>
-              View Job <ExternalLink size={12} style={{ marginLeft: 4 }} />
-            </a>
+            </span>
           </div>
-        ))}
-      </div>
+        </nav>
+
+        {/* Hero content */}
+        <div className="max-w-7xl mx-auto px-6 lg:px-10 py-12 lg:py-20 flex flex-col lg:flex-row items-center gap-10 lg:gap-16">
+          {/* Text */}
+          <div className="flex-1 text-center lg:text-left">
+            <h1 className="text-5xl lg:text-6xl font-bold leading-tight tracking-tight">
+              Your jobs,{" "}
+              <span className="text-brand-primary">scored</span>
+              <br />
+              <span className="text-foreground/40 font-light">daily.</span>
+            </h1>
+            <p className="mt-5 text-muted-foreground text-base leading-relaxed max-w-lg mx-auto lg:mx-0">
+              Gemini scans four job boards every morning at 07:00 EST and ranks each listing
+              against your profile.{" "}
+              {stats.total > 0 && (
+                <>
+                  <span className="text-brand-primary font-semibold">{stats.strong} strong</span>
+                  {stats.strong === 1 ? " match" : " matches"} out of {stats.total} listings today.
+                </>
+              )}
+            </p>
+          </div>
+
+          {/* Buttons — centered */}
+          <div className="flex flex-col items-center gap-3 shrink-0">
+            <button
+              onClick={() => load()}
+              disabled={loading}
+              className="flex items-center justify-center gap-2 w-52 px-5 py-3 bg-brand-primary text-brand-bg font-bold rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 text-sm uppercase tracking-wider"
+            >
+              <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
+              Refresh Stream
+            </button>
+            <button
+              onClick={() => setShowSavedOnly((v) => !v)}
+              className={`flex items-center justify-center gap-2 w-52 px-5 py-3 rounded-lg border font-bold text-sm uppercase tracking-wider transition-colors ${
+                showSavedOnly
+                  ? "border-brand-primary text-brand-primary bg-brand-primary/10"
+                  : "border-brand-border text-foreground hover:bg-brand-card"
+              }`}
+            >
+              <Bookmark className="size-4" />
+              Saved [{String(bookmarks.size).padStart(2, "0")}]
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ── DASHBOARD ── */}
+      <main className="max-w-7xl mx-auto px-6 lg:px-10 py-8 space-y-8">
+
+        {error ? (
+          <div className="bg-brand-card border border-brand-danger/40 rounded-xl p-8 flex items-start gap-4">
+            <div className="size-10 bg-brand-danger/15 text-brand-danger rounded-full flex items-center justify-center shrink-0">
+              <AlertCircle className="size-5" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold">Data pipeline offline</h3>
+              <p className="text-muted-foreground mt-1">{error}</p>
+              <button
+                onClick={() => load()}
+                className="mt-4 px-4 py-2 bg-brand-card border border-brand-border rounded-lg text-sm font-semibold hover:bg-brand-border/40 transition-colors"
+              >
+                Retry connection
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Stats row */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Left: Match gauge */}
+              <MatchGauge
+                avg={stats.avg}
+                total={stats.total}
+                strong={stats.strong}
+                remote={stats.remote}
+                sources={stats.sources}
+              />
+
+              {/* Right: stat cards + radar */}
+              <div className="lg:col-span-2 flex flex-col gap-4">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  <StatCard
+                    label="Total Scraped"
+                    value={String(stats.total).padStart(3, "0")}
+                    icon={Briefcase}
+                  />
+                  <StatCard
+                    label="Median Salary"
+                    value={stats.medianSalary ? `$${Math.round(stats.medianSalary / 1000)}k` : "N/A"}
+                    icon={Activity}
+                    tone="primary"
+                  />
+                  <StatCard
+                    label="Top Score"
+                    value={stats.topScore ? `${stats.topScore}%` : "—"}
+                    icon={Globe}
+                    tone="primary"
+                  />
+                  <StatCard
+                    label="Saved"
+                    value={String(bookmarks.size).padStart(2, "0")}
+                    icon={Database}
+                    tone="secondary"
+                  />
+                </div>
+                <SkillRadar jobs={jobs} />
+              </div>
+            </div>
+
+            {/* Score distribution */}
+            {jobs.length > 0 && <ScoreDistribution jobs={jobs} />}
+
+            {/* Priority gaps */}
+            <PriorityGaps jobs={jobs} />
+
+            {/* Filter bar */}
+            <FilterBar filters={filters} onChange={setFilters} />
+
+            {/* Job listings */}
+            <section className="space-y-4 pb-20">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">
+                  Matched Listings{" "}
+                  <span className="font-mono text-foreground/60">
+                    [{filtered.length} OF {jobs.length}]
+                  </span>
+                </h2>
+              </div>
+
+              {loading && jobs.length === 0 ? (
+                <div className="grid gap-4">
+                  {[0, 1, 2].map((i) => (
+                    <div
+                      key={i}
+                      className="h-48 bg-brand-card border border-brand-border rounded-xl animate-pulse"
+                    />
+                  ))}
+                </div>
+              ) : filtered.length === 0 ? (
+                <div className="bg-brand-card border border-brand-border rounded-xl p-10 text-center">
+                  <p className="text-muted-foreground">
+                    No jobs match the current filters. Try lowering the minimum score or
+                    expanding the timeframe.
+                  </p>
+                </div>
+              ) : (
+                filtered.map((job) => (
+                  <JobCard
+                    key={job.id}
+                    job={job}
+                    bookmarked={bookmarks.has(job.id)}
+                    onToggleBookmark={() => toggleBookmark(job.id)}
+                  />
+                ))
+              )}
+            </section>
+          </>
+        )}
+      </main>
+
+      {/* Scroll to top */}
+      {showScrollTop && (
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          aria-label="Back to top"
+          className="fixed bottom-6 right-6 z-50 p-3 rounded-full bg-brand-card border border-brand-border text-muted-foreground hover:text-brand-primary hover:border-brand-primary transition-colors shadow-lg"
+        >
+          <ArrowUp className="size-5" />
+        </button>
+      )}
     </div>
   );
 }

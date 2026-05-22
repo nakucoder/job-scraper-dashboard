@@ -1,62 +1,76 @@
-🚀 Job Scraper Dashboard
+# Job Scraper Dashboard
 
-A React dashboard that displays AI-scored job listings from the Multi-Cloud Job Scraper Pipeline.
+A personal dashboard that displays Gemini AI-scored job listings from the Multi-Cloud Job Scraper Pipeline. Scores every listing against your profile every morning at 07:00 EST.
 
-## 🌐 Live Demo
+## Live Demo
 
 [job-scraper-dashboard-taupe.vercel.app](https://job-scraper-dashboard-taupe.vercel.app)
 
-## 📊 Features
+## Features
 
-- Daily job listings scored by Gemini AI
-- Filter by days, minimum match score, source, and remote status
-- Match score distribution chart
-- Stats cards — total jobs, average score, remote count, sources
-- Direct links to job postings
+- Daily job listings scored by Gemini AI (match % against your profile)
+- Circular match index gauge with strong / remote / sources breakdown
+- Skill coverage radar chart derived from today's job titles
+- Score distribution chart (red → amber → blue → green)
+- Priority skill gaps — recurring blockers across stretch-zone listings
+- Full filter bar — search, timeframe, min score slider, source, sort, remote toggle
+- Job cards with left accent bar, score ring, gaps, and upskill path
+- Bookmark jobs — saved to localStorage
+- Scroll-to-top button
+- Mobile responsive
 
-## 🔗 Connected To
+## API
 
-This dashboard consumes the `/jobs` API endpoint from the backend pipeline:
+Consumes the `/jobs` endpoint from the backend scraper pipeline:
+
+```
 GET https://q0xo68b302.execute-api.us-east-1.amazonaws.com/Prod/jobs
-
-### Query Parameters
-
-| Parameter | Type | Description | Example |
-|-----------|------|-------------|---------|
-| days | int | Days of history | ?days=7 |
-| min_score | int | Minimum match score | ?min_score=70 |
-| remote_only | bool | Remote jobs only | ?remote_only=true |
-| source | string | Filter by source | ?source=USAJobs |
-
-## 🗂️ Project Structure
-
-```
-job-scraper-dashboard/
-├── src/
-│   ├── App.jsx        # Main dashboard component
-│   ├── index.css      # Global styles
-│   └── main.jsx       # Entry point
-├── public/
-├── index.html
-├── vite.config.js
-└── package.json
 ```
 
-## 🚀 Run Locally
+| Parameter   | Type   | Description            |
+|-------------|--------|------------------------|
+| days        | int    | Days of history        |
+| min_score   | int    | Minimum match score    |
+| remote_only | bool   | Remote jobs only       |
+| source      | string | USAJobs / Remotive / StackOverflow / Indeed |
+
+## Project Structure
+
+```
+src/
+├── App.jsx                        # Main layout + state
+├── index.css                      # Tailwind v4 + brand tokens
+├── main.jsx                       # Entry point
+├── lib/
+│   ├── jobs-data.ts               # API client + Job type + field mapping
+│   └── utils.ts                   # cn() helper
+└── components/dashboard/
+    ├── StatCard.tsx
+    ├── MatchGauge.tsx
+    ├── SkillRadar.tsx
+    ├── ScoreDistribution.tsx
+    ├── FilterBar.tsx
+    ├── JobCard.tsx
+    └── PriorityGaps.tsx
+```
+
+## Run Locally
 
 ```bash
+cd ~/job-scraper-dashboard
 npm install
 npm run dev
 ```
 
-## 🛠️ Tech Stack
+## Tech Stack
 
-- React + Vite
-- Recharts — score distribution chart
+- React 19 + Vite
+- Tailwind CSS v4
+- Recharts — bar chart + radar chart
 - Lucide React — icons
 - Axios — API calls
 - Vercel — deployment
 
-## 👨‍💻 Author
+## Author
 
 Juan Spinelli — Miami, FL
