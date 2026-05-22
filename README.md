@@ -1,6 +1,6 @@
 # Job Scraper Dashboard
 
-A personal dashboard that displays Gemini AI-scored job listings from the Multi-Cloud Job Scraper Pipeline. Scores every listing against your profile every morning at 07:00 EST.
+A personal dashboard that displays Groq (Llama 3.3 70B)-scored job listings from the Multi-Cloud Job Scraper Pipeline. Scores every listing against your profile every morning at 07:00 EST.
 
 ## Live Demo
 
@@ -8,7 +8,7 @@ A personal dashboard that displays Gemini AI-scored job listings from the Multi-
 
 ## Features
 
-- Daily job listings scored by Gemini AI (match % against your profile)
+- Daily job listings scored by Groq / Llama 3.3 70B (match % against your profile)
 - Circular match index gauge with strong / remote / sources breakdown
 - Skill coverage radar chart derived from today's job titles
 - Score distribution chart (red → amber → blue → green)

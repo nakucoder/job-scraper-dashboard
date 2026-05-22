@@ -152,7 +152,7 @@ export default function App() {
               <span className="text-foreground/40 font-light">daily.</span>
             </h1>
             <p className="mt-5 text-muted-foreground text-base leading-relaxed max-w-lg mx-auto lg:mx-0">
-              Gemini scans four job boards every morning at 07:00 EST and ranks each listing
+              Groq scans job boards every morning at 07:00 EST and ranks each listing
               against your profile.{" "}
               {stats.total > 0 && (
                 <>
