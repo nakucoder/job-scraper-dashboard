@@ -152,14 +152,7 @@ export default function App() {
               <span className="text-foreground/40 font-light">daily.</span>
             </h1>
             <p className="mt-5 text-muted-foreground text-base leading-relaxed max-w-lg mx-auto lg:mx-0">
-              Groq scans job boards every morning at 07:00 EST and ranks each listing
-              against your profile.{" "}
-              {stats.total > 0 && (
-                <>
-                  <span className="text-brand-primary font-semibold">{stats.strong} strong</span>
-                  {stats.strong === 1 ? " match" : " matches"} out of {stats.total} listings today.
-                </>
-              )}
+              Groq scans 3 job boards every morning and ranks each listing against your profile.
             </p>
           </div>
 
