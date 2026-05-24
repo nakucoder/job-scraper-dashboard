@@ -7,7 +7,7 @@ interface Props {
   onChange: (next: Filters) => void
 }
 
-const SOURCES: (JobSource | 'all')[] = ['all', 'USAJobs', 'Remotive', 'StackOverflow', 'Indeed']
+const SOURCES: (JobSource | 'all')[] = ['all', 'USAJobs', 'Remotive', 'Jobicy']
 
 export function FilterBar({ filters, onChange }: Props) {
   const set = <K extends keyof Filters>(k: K, v: Filters[K]) =>

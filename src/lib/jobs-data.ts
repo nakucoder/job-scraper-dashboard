@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-export type JobSource = 'USAJobs' | 'Remotive' | 'StackOverflow' | 'Indeed'
+export type JobSource = 'USAJobs' | 'Remotive' | 'Jobicy'
 export type CloudProvider = 'AWS' | 'Azure' | 'GCP' | 'Multi-cloud' | 'On-prem'
 
 export interface Job {
