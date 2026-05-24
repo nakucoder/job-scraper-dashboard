@@ -152,7 +152,7 @@ export default function App() {
               <span className="text-foreground/40 font-light">daily.</span>
             </h1>
             <p className="mt-5 text-muted-foreground text-base leading-relaxed max-w-lg mx-auto lg:mx-0">
-              Groq scans 3 job boards every morning and ranks each listing against your profile.
+              Groq scans USJobs, Remotive, Stack Overflow, and Indeed every morning and ranks each listing against your profile.
             </p>
           </div>
 
